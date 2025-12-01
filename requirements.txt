@@ -3,6 +3,11 @@ fastapi>=0.104.0
 pydantic>=2.0.0
 uvicorn>=0.24.0
 
+# Database dependencies (optional, for database mode)
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+
 # Development dependencies
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
@@ -10,3 +15,5 @@ httpx>=0.25.0  # For testing FastAPI
 
 # Optional dependencies for examples
 python-multipart>=0.0.6  # For form data in FastAPI
+python-jose[cryptography]>=3.3.0  # For JWT support in examples
+passlib[bcrypt]>=1.7.4  # For password hashing in examples

@@ -2,6 +2,15 @@
 
 A flexible Python library for managing products with free, paid, credit-based, and mixed pricing systems. Built for easy integration with FastAPI.
 
+## ✨ Version 2.0.0 - NEW Features!
+
+- **🗄️ PostgreSQL/SQLAlchemy Support**: Optional database persistence for production use
+- **👥 Multi-Tenancy**: Support for flexible entity types (user, family, team, organization, etc.)
+- **📊 Credit Transaction Audit Trail**: Complete history of all credit operations
+- **🔄 Alembic Migrations**: Manage database schema changes easily
+- **⚡ Dual-Mode Architecture**: Seamlessly switch between in-memory and database modes
+- **🔒 Backward Compatible**: All v1.x code works without modification!
+
 ## Features
 
 - **Multiple Pricing Models**
@@ -15,6 +24,18 @@ A flexible Python library for managing products with free, paid, credit-based, a
   - Historical usage data
   - Usage statistics by period
   - Credit balance management
+  - **NEW**: Full audit trail in database mode
+
+- **Database Persistence** (NEW in v2.0)
+  - PostgreSQL support via SQLAlchemy
+  - Automatic credit transaction logging
+  - Usage analytics and reporting
+  - Alembic migrations for schema management
+
+- **Multi-Tenancy** (NEW in v2.0)
+  - Flexible entity types (user, family, team, organization)
+  - Configurable entity identifiers
+  - Separate credit wallets per entity
 
 - **FastAPI Integration**
   - Ready-to-use dependencies
@@ -22,22 +43,29 @@ A flexible Python library for managing products with free, paid, credit-based, a
   - Usage limit enforcement
   - Middleware for request tracking
   - Custom error handlers
+  - **NEW**: Database-backed managers
 
 - **Flexible Architecture**
   - Product and tier management
-  - User credit management
+  - Credit balance management
   - Configurable action costs
   - Metadata support throughout
+  - **NEW**: In-memory or database mode
 
 ## Installation
 
 ```bash
+# Basic installation (in-memory mode)
 pip install -r requirements.txt
+
+# For database support
+pip install -r requirements.txt
+# This includes: sqlalchemy, alembic, psycopg2-binary
 ```
 
 ## Quick Start
 
-### 1. Basic Setup
+### 1. In-Memory Mode (Simple, No Database)
 
 ```python
 from pricing_library import (
@@ -52,11 +80,39 @@ from pricing_library import (
 )
 from pricing_library.models.pricing import RecurrenceInterval
 
-# Initialize managers
+# Initialize managers (in-memory mode)
 product_manager = ProductManager()
 usage_manager = UsageManager()
 
 # Create a product
+product = product_manager.create_product(
+    product_id="api_service",
+    name="API Service",
+    description="My awesome API",
+)
+```
+
+### 1b. Database Mode (Production-Ready) - NEW in v2.0!
+
+```python
+from pricing_library import ProductManager, UsageManager, PricingConfig
+from pricing_library.database import init_db, get_session
+
+# Configure database connection
+config = PricingConfig.for_database(
+    database_url="postgresql://user:password@localhost/pricing_db",
+    entity_type="user",  # or "family", "team", "organization"
+)
+
+# Initialize database (creates tables)
+init_db(config)
+
+# Create managers with database support
+session = get_session(config)
+product_manager = ProductManager(db_session=session, config=config)
+usage_manager = UsageManager(db_session=session, config=config)
+
+# Use exactly the same API - data is now persisted!
 product = product_manager.create_product(
     product_id="api_service",
     name="API Service",
@@ -256,25 +312,58 @@ async def advanced_query(
     return {"status": "success"}
 ```
 
+## Multi-Tenancy Example (NEW in v2.0)
+
+```python
+# Configure for family-based app instead of user-based
+config = PricingConfig.for_database(
+    database_url="postgresql://...",
+    entity_type="family"  # Track by family instead of user!
+)
+
+session = get_session(config)
+um = UsageManager(db_session=session, config=config)
+
+# Initialize credits for a family
+um.initialize_user_credits(
+    user_id="family_12345",  # This is actually a family_id
+    product_id="family_app",
+    initial_credits=100,
+)
+
+# Deduct credits for family usage
+um.deduct_credits(
+    user_id="family_12345",
+    product_id="family_app",
+    amount=5,
+    operation_type="ai_chat"
+)
+```
+
 ## Examples
 
-See the complete FastAPI example in `examples/fastapi_example.py`:
+See the complete examples in the `examples/` directory:
 
 ```bash
-# Run the example
+# In-memory example
 python examples/fastapi_example.py
+
+# Database example (NEW in v2.0)
+python examples/fastapi_database_example.py
 
 # Or with uvicorn
 uvicorn examples.fastapi_example:app --reload
 ```
 
-The example includes:
+The examples include:
 - Complete product setup with all pricing models
 - User subscription management
 - Credit purchasing
 - Usage tracking and statistics
 - FastAPI dependencies and middleware
 - Error handling
+- **NEW**: Database persistence
+- **NEW**: Multi-tenancy patterns
 
 ## API Reference
 
@@ -325,12 +414,65 @@ These are automatically converted to appropriate HTTP responses in FastAPI:
 - 429 Too Many Requests - Usage limit exceeded
 - 404 Not Found - Product not found
 
+## Database Setup (NEW in v2.0)
+
+For detailed information on using database mode, see [DATABASE_GUIDE.md](DATABASE_GUIDE.md).
+
+Quick setup:
+
+```bash
+# Create PostgreSQL database
+createdb pricing_library
+
+# Run migrations
+alembic upgrade head
+
+# Configure in your code
+config = PricingConfig.for_database("postgresql://user:pass@localhost/pricing_library")
+init_db(config)
+```
+
 ## Testing
 
 Run the tests:
 
 ```bash
+# All tests (including backward compatibility)
 pytest tests/
+
+# Specific test file
+pytest tests/test_pricing.py -v
+
+# Database mode tests
+pytest tests/test_database_mode.py -v
+```
+
+## Documentation
+
+- **[README.md](README.md)** - This file, quick start guide
+- **[USAGE_GUIDE.md](USAGE_GUIDE.md)** - Comprehensive usage examples
+- **[DATABASE_GUIDE.md](DATABASE_GUIDE.md)** - Database setup and multi-tenancy guide
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+
+## Migration from v1.x to v2.0
+
+**Good news: No breaking changes!** All v1.x code works without modification.
+
+To add database support:
+
+```diff
+  from pricing_library import ProductManager, UsageManager
++ from pricing_library import PricingConfig
++ from pricing_library.database import init_db, get_session
+
++ config = PricingConfig.for_database("postgresql://...")
++ init_db(config)
++ session = get_session(config)
+
+- pm = ProductManager()
+- um = UsageManager()
++ pm = ProductManager(db_session=session, config=config)
++ um = UsageManager(db_session=session, config=config)
 ```
 
 ## License
@@ -340,3 +482,8 @@ MIT License
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Version History
+
+- **v2.0.0** - PostgreSQL support, multi-tenancy, audit trails, Alembic migrations
+- **v1.0.0** - Initial release with in-memory support
